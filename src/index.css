@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-black text-white font-sans antialiased;
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+@layer components {
+  .bento-card {
+    @apply bg-[#0a0a0a] border border-[#c9a84c]/20 rounded-2xl p-6 hover:border-[#c9a84c]/40 transition-all shadow-lg;
+  }
+
+  .glass-card {
+    @apply bg-[#0a0a0a]/80 backdrop-blur-md border border-white/10 rounded-2xl p-6;
+  }
+
+  .gold-text {
+    @apply text-[#c9a84c];
+  }
+
+  .gold-gradient {
+    @apply bg-gradient-to-r from-[#c9a84c] to-[#d4b85f] text-transparent bg-clip-text;
+  }
+}
