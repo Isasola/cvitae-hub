@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation } from 'wouter'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Save, Plus, X, Sparkles, CheckCircle } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { ArrowLeft, Save, Plus, X, CheckCircle } from 'lucide-react'
+import { supabase, auth } from '../lib/supabase'
 
 const STEP_TITLES = ['Datos Básicos', 'Experiencia', 'Habilidades', 'Revisión']
 const SENIORITY_OPTIONS = ['junior', 'semi-senior', 'senior']
@@ -12,6 +12,8 @@ export default function ProfileBuilder() {
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [existingProfileId, setExistingProfileId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -23,6 +25,35 @@ export default function ProfileBuilder() {
   })
 
   const [newSkill, setNewSkill] = useState('')
+
+  // Cargar usuario autenticado y su perfil existente (si tiene)
+  useEffect(() => {
+    auth.getUser().then(setUser)
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      // Buscar perfil existente del usuario
+      supabase
+        .from('user_master_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setExistingProfileId(data.id)
+            setFormData({
+              full_name: data.full_name || '',
+              professional_title: data.professional_title || '',
+              location: data.profile_data?.location || '',
+              seniority: data.profile_data?.seniority || 'junior',
+              summary: data.summary || '',
+              habilidades: data.profile_data?.habilidades || [],
+            })
+          }
+        })
+    }
+  }, [user])
 
   const addSkill = () => {
     if (newSkill.trim() && !formData.habilidades.includes(newSkill.trim())) {
@@ -42,7 +73,11 @@ export default function ProfileBuilder() {
   }
 
   const handleSave = async () => {
-    // Validaciones antes de guardar
+    if (!user) {
+      alert('Necesitás iniciar sesión para guardar tu perfil.')
+      return
+    }
+
     if (!formData.full_name.trim()) {
       alert('Por favor, ingresá tu nombre completo antes de guardar.')
       return
@@ -62,29 +97,40 @@ export default function ProfileBuilder() {
 
     setSaving(true)
     try {
-      // Guardar en Supabase
-      const { data, error } = await supabase
-        .from('user_master_profiles')
-        .insert({
-          full_name: formData.full_name,
-          professional_title: formData.professional_title,
-          summary: formData.summary,
-          profile_data: {
-            habilidades: formData.habilidades,
-            seniority: formData.seniority,
-            location: formData.location,
-          },
-        })
-        .select('id')
-        .single()
+      const profilePayload = {
+        user_id: user.id,
+        full_name: formData.full_name,
+        professional_title: formData.professional_title,
+        summary: formData.summary,
+        profile_data: {
+          habilidades: formData.habilidades,
+          seniority: formData.seniority,
+          location: formData.location,
+        },
+      }
+
+      let error
+      if (existingProfileId) {
+        // Actualizar perfil existente
+        const { error: updateError } = await supabase
+          .from('user_master_profiles')
+          .update(profilePayload)
+          .eq('id', existingProfileId)
+        error = updateError
+      } else {
+        // Crear nuevo perfil
+        const { error: insertError } = await supabase
+          .from('user_master_profiles')
+          .insert(profilePayload)
+        error = insertError
+      }
 
       if (error) throw error
 
-      // Guardar en localStorage como respaldo
+      // Guardar respaldo local
       localStorage.setItem(
         'cvitae_profile_backup',
         JSON.stringify({
-          id: data.id,
           ...formData,
           savedAt: new Date().toISOString(),
         })
@@ -100,6 +146,22 @@ export default function ProfileBuilder() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-gray-400 mb-4">Necesitás iniciar sesión para acceder al perfil.</p>
+          <button
+            onClick={() => setLocation('/')}
+            className="px-6 py-3 bg-[#c9a84c] text-black font-bold rounded-xl hover:bg-[#d4b85f] transition-all"
+          >
+            Volver al Dashboard
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const totalSteps = STEP_TITLES.length
