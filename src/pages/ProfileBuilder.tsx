@@ -42,9 +42,28 @@ export default function ProfileBuilder() {
   }
 
   const handleSave = async () => {
+    // Validaciones antes de guardar
+    if (!formData.full_name.trim()) {
+      alert('Por favor, ingresá tu nombre completo antes de guardar.')
+      return
+    }
+
+    if (formData.habilidades.length === 0) {
+      alert('Agregá al menos una habilidad para completar tu perfil.')
+      return
+    }
+
+    if (formData.habilidades.length < 3) {
+      const confirm = window.confirm(
+        'Tenés menos de 3 habilidades cargadas. Un perfil con más habilidades obtiene matches más precisos. ¿Querés guardar igual?'
+      )
+      if (!confirm) return
+    }
+
     setSaving(true)
     try {
-      const { error } = await supabase
+      // Guardar en Supabase
+      const { data, error } = await supabase
         .from('user_master_profiles')
         .insert({
           full_name: formData.full_name,
@@ -56,8 +75,20 @@ export default function ProfileBuilder() {
             location: formData.location,
           },
         })
+        .select('id')
+        .single()
 
       if (error) throw error
+
+      // Guardar en localStorage como respaldo
+      localStorage.setItem(
+        'cvitae_profile_backup',
+        JSON.stringify({
+          id: data.id,
+          ...formData,
+          savedAt: new Date().toISOString(),
+        })
+      )
 
       setSaved(true)
       setTimeout(() => {
@@ -65,7 +96,7 @@ export default function ProfileBuilder() {
       }, 2000)
     } catch (err) {
       console.error('Error al guardar:', err)
-      alert('Error al guardar el perfil')
+      alert('Error al guardar el perfil. Tus datos se guardaron localmente como respaldo. Reintentá más tarde.')
     } finally {
       setSaving(false)
     }
