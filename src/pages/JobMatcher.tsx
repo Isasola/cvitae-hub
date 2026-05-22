@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation } from 'wouter'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Search, Sparkles, AlertCircle, CheckCircle, TrendingUp, MapPin, Briefcase } from 'lucide-react'
+import { ArrowLeft, Search, AlertCircle, CheckCircle, TrendingUp, Briefcase } from 'lucide-react'
 import { matchVacancy } from '../lib/api'
+import { auth } from '../lib/supabase'
 import MatchScoreRing from '../components/MatchScoreRing'
 
 interface MatchResult {
@@ -24,10 +25,20 @@ export default function JobMatcher() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<MatchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+
+  useEffect(() => {
+    auth.getUser().then(setUser)
+  }, [])
 
   const isValidLength = vacancyText.replace(/\s+/g, '').length >= 50
 
   const handleMatch = async () => {
+    if (!user) {
+      setError('Necesitás iniciar sesión para analizar una vacante.')
+      return
+    }
+
     if (!isValidLength) {
       setError('La descripción es demasiado corta. Necesitamos al menos 50 caracteres para un análisis fiable.')
       return
@@ -38,10 +49,7 @@ export default function JobMatcher() {
     setResult(null)
 
     try {
-      const data = await matchVacancy(
-        '0579bae0-ecd0-458d-8077-2ad5d7990e09',
-        vacancyText
-      )
+      const data = await matchVacancy(user.id, vacancyText)
       setResult(data)
     } catch (err: any) {
       setError(err.message || 'Error al analizar la vacante')
@@ -60,6 +68,22 @@ export default function JobMatcher() {
     if (confidence === 'alta') return 'bg-green-500/10 text-green-400 border-green-500/20'
     if (confidence === 'media') return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
     return 'bg-red-500/10 text-red-400 border-red-500/20'
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-gray-400 mb-4">Necesitás iniciar sesión para analizar vacantes.</p>
+          <button
+            onClick={() => setLocation('/')}
+            className="px-6 py-3 bg-[#c9a84c] text-black font-bold rounded-xl hover:bg-[#d4b85f] transition-all"
+          >
+            Volver al Dashboard
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
