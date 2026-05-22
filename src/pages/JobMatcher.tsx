@@ -25,8 +25,13 @@ export default function JobMatcher() {
   const [result, setResult] = useState<MatchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const isValidLength = vacancyText.replace(/\s+/g, '').length >= 50
+
   const handleMatch = async () => {
-    if (!vacancyText.trim()) return
+    if (!isValidLength) {
+      setError('La descripción es demasiado corta. Necesitamos al menos 50 caracteres para un análisis fiable.')
+      return
+    }
 
     setLoading(true)
     setError(null)
@@ -93,11 +98,13 @@ export default function JobMatcher() {
           />
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-500">
-              💡 <strong>Sugerencia:</strong> Cuanto más texto tenga la vacante, más preciso será el análisis.
+              {!isValidLength && vacancyText.length > 0
+                ? `⚠️ Faltan ${50 - vacancyText.replace(/\s+/g, '').length} caracteres para un análisis fiable.`
+                : '💡 Cuanto más texto tenga la vacante, más preciso será el análisis.'}
             </p>
             <button
               onClick={handleMatch}
-              disabled={loading || !vacancyText.trim()}
+              disabled={loading || !isValidLength}
               className="flex items-center gap-2 px-6 py-3 bg-[#c9a84c] text-black font-bold rounded-xl hover:bg-[#d4b85f] transition-all disabled:opacity-50"
             >
               <Search size={18} />
