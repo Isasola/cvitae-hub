@@ -1,3 +1,5 @@
+import { supabase } from './supabase'
+
 const EDGE_FUNCTION_URL = 'https://rbrirxbjbmdxflzaxxzp.supabase.co/functions/v1/universal-job-matcher'
 
 interface MatchResult {
@@ -20,18 +22,26 @@ interface MatchError {
   details?: string
 }
 
-export async function matchVacancy(
-  userProfileId: string,
-  vacancyText: string
-): Promise<MatchResult> {
+export async function matchVacancy(userId: string, vacancyText: string): Promise<MatchResult> {
+  // Obtener el token JWT del usuario autenticado
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+
+  if (!token) {
+    throw new Error('Necesitás iniciar sesión para analizar vacantes.')
+  }
+
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 12000) // 12 segundos de timeout
+  const timeout = setTimeout(() => controller.abort(), 12000)
 
   try {
     const response = await fetch(EDGE_FUNCTION_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userProfileId, vacancyText }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ vacancyText }),
       signal: controller.signal,
     })
 
@@ -42,7 +52,6 @@ export async function matchVacancy(
       throw new Error(errorData.error || 'Error al analizar la vacante')
     }
 
-    // Si hay error pero status 200 (ejemplo: sin habilidades detectadas)
     if (data.error) {
       throw new Error(data.error)
     }
