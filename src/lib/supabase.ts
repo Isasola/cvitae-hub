@@ -6,7 +6,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // URL pública del sitio para redirecciones (Magic Link)
-const siteUrl = import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin
+// CAMBIA ESTA LÍNEA por tu URL real, sin barra al final
+const siteUrl = 'https://cvitaehub.netlify.app'
 
 export const auth = {
   signInWithMagicLink: async (email: string) => {
