@@ -11,13 +11,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-// URL de producción (usa variable de entorno + fallback)
+// Función para obtener la URL correcta según el entorno
 const getSiteUrl = () => {
-  // En producción (Netlify)
   if (import.meta.env.PROD) {
     return import.meta.env.VITE_PUBLIC_SITE_URL || 'https://cvitaehub.netlify.app'
   }
-  // En desarrollo
+  // En desarrollo (localhost)
   return 'http://localhost:3000'
 }
 
@@ -28,8 +27,7 @@ export const auth = {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${siteUrl}/profile`,   // ← Esta es la clave
-        // Opcional: agregar captcha si tenés problemas de rate limit
+        emailRedirectTo: `${siteUrl}/auth/callback`,   // ← Correcto
       },
     })
     return { error }
