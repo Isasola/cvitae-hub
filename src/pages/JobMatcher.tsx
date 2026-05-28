@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'wouter'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Search, AlertCircle, CheckCircle, TrendingUp, Briefcase } from 'lucide-react'
+import { ArrowLeft, Search, AlertCircle, CheckCircle, TrendingUp, Briefcase, Sparkles, ArrowRight } from 'lucide-react'
 import { matchVacancy } from '../lib/api'
 import { auth } from '../lib/supabase'
 import MatchScoreRing from '../components/MatchScoreRing'
@@ -17,6 +17,7 @@ interface MatchResult {
   profileSkills: string[]
   vacancySkills: string[]
   summary: string
+  courses?: { skill: string; course: string; platform: string; url: string }[]
 }
 
 export default function JobMatcher() {
@@ -255,6 +256,33 @@ export default function JobMatcher() {
                 </p>
               </div>
             </div>
+
+            {result.courses && result.courses.length > 0 && (
+              <div className="bento-card">
+                <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                  <Sparkles size={18} className="text-[#c9a84c]" />
+                  Cursos Recomendados para tus Brechas
+                </h3>
+                <div className="space-y-3">
+                  {result.courses.map((c, i) => (
+                    <a
+                      key={i}
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-lg hover:border-[#c9a84c]/30 hover:bg-[#c9a84c]/5 transition-all group"
+                    >
+                      <div>
+                        <p className="text-xs text-[#c9a84c] mb-1">{c.skill}</p>
+                        <p className="text-white text-sm font-medium">{c.course}</p>
+                        <p className="text-xs text-gray-500">{c.platform}</p>
+                      </div>
+                      <ArrowRight size={16} className="text-gray-500 group-hover:text-[#c9a84c] transition-colors" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* New Analysis Button */}
             <div className="text-center">

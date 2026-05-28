@@ -38,7 +38,7 @@ export default function ProfileBuilder() {
         .from('user_master_profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
         .then(({ data }) => {
           if (data) {
             setExistingProfileId(data.id)
