@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'wouter'
-import { Sparkles, UserCircle, Search, TrendingUp, ArrowRight, LogOut, Mail, Briefcase, MapPin } from 'lucide-react'
+import { Sparkles, UserCircle, Search, RefreshCw, ArrowRight, LogOut, Mail, Briefcase, MapPin, Lock, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
 import BentoCard from '../components/BentoCard'
 import MatchScoreRing from '../components/MatchScoreRing'
@@ -14,6 +14,8 @@ const LOADER_STEPS = [
   "Calculando compatibilidad...",
   "Ordenando resultados...",
 ]
+const DAILY_LIMIT_KEY = 'cvitae_hub_last_match_fetch'
+const WA_NUMBER = '595992954169' // Número de WhatsApp para suscripciones
 
 interface MatchItem {
   id: string
@@ -30,6 +32,18 @@ interface MatchItem {
   vacancySkills: string[]
 }
 
+function shouldFetchToday(): boolean {
+  const lastFetch = localStorage.getItem(DAILY_LIMIT_KEY)
+  if (!lastFetch) return true
+  const lastDate = new Date(lastFetch).toDateString()
+  const today = new Date().toDateString()
+  return lastDate !== today
+}
+
+function markFetchedToday(): void {
+  localStorage.setItem(DAILY_LIMIT_KEY, new Date().toISOString())
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation()
   const [user, setUser] = useState<any>(null)
@@ -41,6 +55,7 @@ export default function Dashboard() {
   const [matchesError, setMatchesError] = useState<string | null>(null)
   const [loaderStep, setLoaderStep] = useState(0)
   const [profileSkills, setProfileSkills] = useState<string[]>([])
+  const [isSubscribed, setIsSubscribed] = useState(false)
 
   useEffect(() => {
     auth.getUser().then(setUser)
@@ -54,7 +69,6 @@ export default function Dashboard() {
     }
   }, [])
 
-  // Avanzar pasos del loader cada 2 segundos
   useEffect(() => {
     if (!loadingMatches) return
     const interval = setInterval(() => {
@@ -63,13 +77,15 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [loadingMatches])
 
-  // Cargar matches cuando el usuario esté autenticado
   useEffect(() => {
     if (user) {
-      loadMatches()
+      if (shouldFetchToday()) {
+        loadMatches()
+      }
     } else {
       setMatches([])
       setProfileSkills([])
+      setIsSubscribed(false)
     }
   }, [user])
 
@@ -94,6 +110,8 @@ export default function Dashboard() {
       if (!response.ok) throw new Error(data.error || 'Error al cargar matches')
       setMatches(data.matches || [])
       setProfileSkills(data.profileSkills || [])
+      setIsSubscribed(data.is_subscribed || false)
+      markFetchedToday()
     } catch (err: any) {
       setMatchesError(err.message)
     } finally {
@@ -101,7 +119,6 @@ export default function Dashboard() {
     }
   }
 
-  // Calcular habilidades faltantes reales desde los matches
   const missingSkills = useMemo(() => {
     if (matches.length === 0) return []
     const top5 = matches.slice(0, 5)
@@ -113,17 +130,23 @@ export default function Dashboard() {
         }
       })
     })
-    // Contar frecuencia
     const freq: Record<string, number> = {}
     allVacancySkills.forEach(skill => {
       freq[skill] = (freq[skill] || 0) + 1
     })
-    // Ordenar por frecuencia descendente y tomar las 4 más frecuentes
     return Object.entries(freq)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 4)
       .map(([skill]) => skill)
   }, [matches, profileSkills])
+
+  const handleOpportunityClick = (match: MatchItem) => {
+    if (match.application_url) {
+      window.open(match.application_url, '_blank', 'noopener,noreferrer')
+    } else {
+      window.open(`https://cvitae-py.netlify.app/opportunities/${match.slug}`, '_blank', 'noopener,noreferrer')
+    }
+  }
 
   const handleSendMagicLink = async () => {
     if (!email.trim()) return
@@ -144,6 +167,7 @@ export default function Dashboard() {
     setEmail('')
     setMatches([])
     setProfileSkills([])
+    setIsSubscribed(false)
   }
 
   const getScoreColor = (score: number) => {
@@ -151,6 +175,8 @@ export default function Dashboard() {
     if (score >= 60) return 'text-yellow-400'
     return 'text-red-400'
   }
+
+  const canForceRefresh = isSubscribed // Solo suscriptores pueden forzar actualización
 
   return (
     <div className="min-h-screen bg-black p-4 md:p-8">
@@ -292,13 +318,18 @@ export default function Dashboard() {
         </BentoCard>
 
         {/* Card: Oportunidades para vos (MATCHING AUTOMÁTICO) */}
-        <BentoCard title="Oportunidades para vos" icon={<Briefcase size={20} />} className="lg:col-span-2">
+        <BentoCard
+          title="Oportunidades para vos"
+          icon={<Briefcase size={20} />}
+          className="lg:col-span-2"
+        >
           {!user ? (
             <p className="text-gray-500 text-center py-6">Ingresá para ver tus matches</p>
           ) : loadingMatches ? (
             <MatchingLoader
               steps={LOADER_STEPS}
               currentStep={loaderStep}
+              totalVacancies={50}
             />
           ) : matchesError ? (
             <div className="text-center py-6">
@@ -306,16 +337,27 @@ export default function Dashboard() {
               <button onClick={loadMatches} className="text-[#c9a84c] text-sm hover:underline">Reintentar</button>
             </div>
           ) : matches.length === 0 ? (
-            <p className="text-gray-500 text-center py-6">No se encontraron matches. Completá tu perfil con más habilidades.</p>
+            <div className="text-center py-6">
+              <p className="text-gray-500 mb-3">No se encontraron matches. Completá tu perfil con más habilidades.</p>
+              {!canForceRefresh && !shouldFetchToday() && (
+                <a
+                  href={`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola! Quiero activar mi suscripción a CVitae Hub por USD 5/mes.')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500 transition-all mt-3"
+                >
+                  <ExternalLink size={16} />
+                  Suscribirme por $5/mes
+                </a>
+              )}
+            </div>
           ) : (
             <div className="space-y-3">
               {matches.slice(0, 5).map((match) => (
                 <div
                   key={match.id}
                   className="flex items-center justify-between p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer"
-                  onClick={() => {
-                    if (match.application_url) window.open(match.application_url, '_blank')
-                  }}
+                  onClick={() => handleOpportunityClick(match)}
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-medium truncate">{match.titulo}</p>
@@ -346,9 +388,34 @@ export default function Dashboard() {
               )}
             </div>
           )}
-          {user && matches.length > 0 && (
-            <div className="mt-4 p-3 bg-[#c9a84c]/5 border border-[#c9a84c]/10 rounded-lg">
-              <p className="text-xs text-gray-400">
+
+          {/* Sección de actualización / CTA */}
+          {user && !loadingMatches && matches.length > 0 && (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              {canForceRefresh ? (
+                <button
+                  onClick={loadMatches}
+                  disabled={loadingMatches}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#c9a84c]/10 border border-[#c9a84c]/30 rounded-xl text-[#c9a84c] hover:bg-[#c9a84c]/20 transition-all text-sm"
+                >
+                  <RefreshCw size={14} className={loadingMatches ? 'animate-spin' : ''} />
+                  Actualizar matches ahora
+                </button>
+              ) : (
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-2">Límite diario alcanzado</p>
+                  <a
+                    href={`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hola! Quiero activar mi suscripción a CVitae Hub por USD 5/mes.')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500 transition-all text-sm"
+                  >
+                    <ExternalLink size={14} />
+                    Suscribirme por $5/mes
+                  </a>
+                </div>
+              )}
+              <p className="text-xs text-gray-400 mt-2">
                 💡 <strong>Sugerencia:</strong> Hacé clic en una oportunidad para postularte directamente.
               </p>
             </div>
